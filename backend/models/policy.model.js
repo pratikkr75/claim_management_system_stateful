@@ -85,12 +85,22 @@ class Policy {
         return true;
     }
 
-    // Static method to update policy details
+    // Static method to update policy details and remaining coverage amount
     static updatePolicy(id, updatedData) {
         const policy = policies.find(p => p.id === id);
         if (!policy) return null;
 
-        Object.assign(policy, updatedData);
+        // If the policyAmount is updated, update the remainingCoverageAmount as well
+        if (updatedData.policyAmount && updatedData.policyAmount !== policy.policyAmount) {
+            policy.policyAmount = updatedData.policyAmount;
+            policy.remainingCoverageAmount = updatedData.policyAmount; // Ensure remaining coverage is updated
+        }
+
+        // If the status is updated, just update the status
+        if (updatedData.status) {
+            policy.status = updatedData.status;
+        }
+
         policy.updatedAt = new Date();
         return policy;
     }

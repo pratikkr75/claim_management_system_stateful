@@ -1,10 +1,11 @@
-// Simulating in-memory storage for Claim data
+import { v4 as uuidv4 } from 'uuid'; // Import UUID for unique ID generation
+import Policy from './policy.model.js'; // Ensure you import the policy model
+
 const claims = [];
 
-// Constructor for Claim class
 class Claim {
-    constructor(id, policyId, amount, status, filingDate) {
-        this.id = id;
+    constructor(policyId, amount, status, filingDate) {
+        this.id = uuidv4(); // Generate a unique ID using UUID
         this.policyId = policyId;
         this.amount = amount;
         this.status = status;
@@ -13,7 +14,6 @@ class Claim {
         this.updatedAt = new Date();
     }
 
-    // Static method to validate claim amount
     static validateAmount(claimAmount, policyAmount) {
         if (claimAmount <= 0) {
             return 'Claim amount must be greater than zero.';
@@ -24,7 +24,6 @@ class Claim {
         return null;
     }
 
-    // Instance method to update the remaining coverage on the associated policy
     updateRemainingCoverage() {
         const policy = Policy.findById(this.policyId);
         if (!policy) {
@@ -35,13 +34,10 @@ class Claim {
             throw new Error(amountValidation);
         }
 
-        // Update remaining coverage in the associated policy
-        policy.updateRemainingCoverage(this.amount);
+        policy.updateRemainingCoverage(this.amount); // Update policy's remaining coverage
     }
 
-    // Save the claim to the "in-memory" array after validating
     static save(claim) {
-        // Validate claim amount
         const policy = Policy.findById(claim.policyId);
         if (!policy) {
             throw new Error('Policy not found');
@@ -51,20 +47,28 @@ class Claim {
             throw new Error(amountValidation);
         }
 
-        // Validate claim status (Add status validation as needed)
-        // const statusValidation = Claim.validateStatus(claim.status);
-        // if (statusValidation) {
-        //     throw new Error(statusValidation);
-        // }
-
-        // Save the claim
         claims.push(claim);
-        claim.updateRemainingCoverage();  // This will internally call updateRemainingCoverage method in Policy model
+        claim.updateRemainingCoverage(); // Update remaining coverage in policy
     }
 
-    // Static method to find a claim by ID
     static findById(id) {
         return claims.find(c => c.id === id);
+    }
+
+    static updateClaim(id, updatedData) {
+        const claim = claims.find(c => c.id === id);
+        if (!claim) return null;
+
+        Object.assign(claim, updatedData);
+        claim.updatedAt = new Date();
+        return claim;
+    }
+
+    static deleteClaim(id) {
+        const index = claims.findIndex(c => c.id === id);
+        if (index === -1) return false;
+        claims.splice(index, 1);
+        return true;
     }
 }
 

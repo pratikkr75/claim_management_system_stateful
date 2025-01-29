@@ -41,7 +41,7 @@ class PolicyController {
         return res.status(200).json(policy);
     }
 
-    // Method to update the remaining coverage of a policy
+    // Method to update the remaining coverage of a policy (PATCH)
     static updateCoverage(req, res) {
         const { claimAmount } = req.body;
         const policy = Policy.findById(req.params.id);
@@ -50,6 +50,7 @@ class PolicyController {
         }
 
         try {
+            // Update the remaining coverage after a claim
             policy.updateRemainingCoverage(claimAmount);
             return res.status(200).json({ message: 'Coverage updated successfully', policy });
         } catch (error) {
@@ -58,6 +59,7 @@ class PolicyController {
     }
 
     // Method to update a policy by ID
+    // Method to update a policy by ID (PUT)
     static updatePolicy(req, res) {
         const { status, policyAmount } = req.body;
         const policy = Policy.findById(req.params.id);
@@ -71,13 +73,21 @@ class PolicyController {
             return res.status(400).json({ error: statusValidation });
         }
 
-        // Update policy
+        // Check if policyAmount is being updated and update remainingCoverageAmount
+        if (policyAmount && policyAmount !== policy.policyAmount) {
+            policy.policyAmount = policyAmount;
+            policy.remainingCoverageAmount = policyAmount; // Ensure remaining coverage matches updated policyAmount
+        }
+
+        // Update the policy
         const updatedPolicy = Policy.updatePolicy(req.params.id, { status, policyAmount });
         if (!updatedPolicy) {
             return res.status(400).json({ error: 'Failed to update policy' });
         }
+
         return res.status(200).json(updatedPolicy);
     }
+
 
     // Method to delete a policy by ID
     static deletePolicy(req, res) {
