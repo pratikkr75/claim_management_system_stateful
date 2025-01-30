@@ -2,7 +2,7 @@ import request from "supertest";
 import app from '../app.js'; // Ensure this path is correct for your project structure
 
 describe('Policyholder API Tests', () => {
-    let policyholderId;
+    let policyholderEmail;
 
     // Test POST (Create policyholder)
     it('should create a new policyholder', async () => {
@@ -15,7 +15,7 @@ describe('Policyholder API Tests', () => {
             });
         expect(res.status).toBe(201);
         expect(res.body.name).toBe('John Doe');
-        policyholderId = res.body._id; // Save the policyholder ID for further tests
+        policyholderEmail = res.body.email; // Save the policyholder ID for further tests
     });
 
     // Test GET (Get all policyholders)
@@ -27,15 +27,15 @@ describe('Policyholder API Tests', () => {
 
     // Test GET (Get policyholder by ID)
     it('should get a policyholder by ID', async () => {
-        const res = await request(app).get(`/api/policyholders/${policyholderId}`);
+        const res = await request(app).get(`/api/policyholders/${policyholderEmail}`);
         expect(res.status).toBe(200);
-        expect(res.body._id).toBe(policyholderId);
+        expect(res.body._id).toBe(policyholderEmail);
     });
 
     // Test PUT (Update policyholder)
     it('should update a policyholder', async () => {
         const res = await request(app)
-            .put(`/api/policyholders/${policyholderId}`)
+            .put(`/api/policyholders/${policyholderEmail}`)
             .send({
                 phone: '0987654321'
             });
@@ -45,7 +45,7 @@ describe('Policyholder API Tests', () => {
 
     // Test DELETE (Delete policyholder)
     it('should delete a policyholder', async () => {
-        const res = await request(app).delete(`/api/policyholders/${policyholderId}`);
+        const res = await request(app).delete(`/api/policyholders/${policyholderEmail}`);
         expect(res.status).toBe(200);
         expect(res.body.message).toBe('Policyholder deleted successfully');
     });

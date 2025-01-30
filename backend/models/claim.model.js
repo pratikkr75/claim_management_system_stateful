@@ -1,75 +1,81 @@
-import { v4 as uuidv4 } from 'uuid'; // Import UUID for unique ID generation
-import Policy from './policy.model.js'; // Ensure you import the policy model
+import mongoose from "mongoose";
+import { v4 as uuidv4 } from "uuid";
+import Policy from "./policy.model.js"; // Import the Policy model
 
-const claims = [];
+const ClaimSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      default: uuidv4, // UUID for claim ID
+      unique: true,
+    },
+    policyId: {
+      type: String,
+      required: true,
+      ref: 'Policy', // Reference to the Policy model
+    },
+    claimAmount: {
+      type: Number,
+      required: true,
+      validate: {
+        validator: function(amount) {
+          return amount > 0;
+        },
+        message: "Claim amount must be greater than zero.",
+      },
+    },
+    filingDate: {
+      type: Date,
+      required: true,
+    },
+    status: {
+      type: String,
+      required: true,
+      enum: ['pending', 'approved', 'rejected'],
+      message: 'Invalid status. Allowed values are: pending, approved, rejected.',
+    },
+  },
+  { timestamps: true }
+);
 
-class Claim {
-    constructor(policyId, amount, status, filingDate) {
-        this.id = uuidv4(); // Generate a unique ID using UUID
-        this.policyId = policyId;
-        this.amount = amount;
-        this.status = status;
-        this.filingDate = filingDate;
-        this.createdAt = new Date();
-        this.updatedAt = new Date();
+// Updated middleware to use UUID-based lookup
+ClaimSchema.pre('save', async function(next) {
+  try {
+    // Use findOne with the UUID instead of findById
+    const policy = await Policy.findOne({ id: this.policyId });
+    
+    if (!policy) {
+      throw new Error("Associated policy not found.");
     }
 
-    static validateAmount(claimAmount, policyAmount) {
-        if (claimAmount <= 0) {
-            return 'Claim amount must be greater than zero.';
-        }
-        if (claimAmount > policyAmount) {
-            return `Claim amount cannot exceed the policy amount of ${policyAmount}.`;
-        }
-        return null;
+    // Ensure we're working with numbers
+    const claimAmount = Number(this.claimAmount);
+    const remainingCoverage = Number(policy.remainingCoverageAmount);
+
+    if (isNaN(claimAmount) || isNaN(remainingCoverage)) {
+      throw new Error("Invalid claim amount or remaining coverage amount.");
+    }
+    
+    if (policy.status !== 'active') {
+      throw new Error("Policy is not active.");
     }
 
-    updateRemainingCoverage() {
-        const policy = Policy.findById(this.policyId);
-        if (!policy) {
-            throw new Error('Policy not found');
-        }
-        const amountValidation = Claim.validateAmount(this.amount, policy.remainingCoverageAmount);
-        if (amountValidation) {
-            throw new Error(amountValidation);
-        }
-
-        policy.updateRemainingCoverage(this.amount); // Update policy's remaining coverage
+    // Check if the claim amount exceeds the remaining coverage
+    if (this.claimAmount > policy.remainingCoverageAmount) {
+      throw new Error("Claim amount exceeds remaining coverage amount.");
     }
 
-    static save(claim) {
-        const policy = Policy.findById(claim.policyId);
-        if (!policy) {
-            throw new Error('Policy not found');
-        }
-        const amountValidation = Claim.validateAmount(claim.amount, policy.remainingCoverageAmount);
-        if (amountValidation) {
-            throw new Error(amountValidation);
-        }
+    
 
-        claims.push(claim);
-        claim.updateRemainingCoverage(); // Update remaining coverage in policy
-    }
+    // Deduct the claim amount from the policy's remaining coverage
+    policy.remainingCoverageAmount -= this.claimAmount;
+    await policy.save();
 
-    static findById(id) {
-        return claims.find(c => c.id === id);
-    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
-    static updateClaim(id, updatedData) {
-        const claim = claims.find(c => c.id === id);
-        if (!claim) return null;
-
-        Object.assign(claim, updatedData);
-        claim.updatedAt = new Date();
-        return claim;
-    }
-
-    static deleteClaim(id) {
-        const index = claims.findIndex(c => c.id === id);
-        if (index === -1) return false;
-        claims.splice(index, 1);
-        return true;
-    }
-}
-
+const Claim = mongoose.model("Claim", ClaimSchema);
 export default Claim;

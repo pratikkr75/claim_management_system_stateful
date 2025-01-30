@@ -1,109 +1,75 @@
-// Simulating in-memory storage for Policy data
-const policies = [];
+import mongoose from "mongoose";
+import { v4 as uuidv4 } from "uuid";
+import Policyholder from "./policyholder.model.js"; // Import the Policyholder model
 
-// Constructor for Policy class
-class Policy {
-    constructor(id, policyholderId, policyAmount, status, startDate) {
-        this.id = id;
-        this.policyholderId = policyholderId;
-        this.policyAmount = policyAmount;
-        this.status = status;
-        this.startDate = startDate;
-        this.remainingCoverageAmount = policyAmount; // Tracks the available coverage
-        this.createdAt = new Date();
-        this.updatedAt = new Date();
-    }
+const PolicySchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      default: uuidv4, // UUID for policy ID
+      unique: true,
+    },
+    policyholderId: {
+      type: String,
+      required: true,
+      ref: 'Policyholder', // Reference to the Policyholder model
+    },
+    policyAmount: {
+      type: Number,
+      required: true,
+      validate: {
+        validator: (amount) => amount > 0,
+        message: "Amount must be greater than zero.",
+      },
+    },
+    status: {
+      type: String,
+      required: true,
+      enum: ['active', 'expired', 'cancelled'],
+      message: 'Invalid status. Allowed values are: active, expired, cancelled.',
+    },
+    startDate: {
+      type: Date,
+      required: true,
+    },
+    remainingCoverageAmount: {
+      type: Number
+    },
+  },
+  { timestamps: true }
+);
 
-    // Check if policy is active
-    isPolicyActive() {
-        return this.status === 'active';
-    }
+// // Pre-save middleware to set initial remaining coverage
+// PolicySchema.pre('findOne', function (next) {
+//   this.populate({
+//     path: 'policyholderId',
+//     model: 'Policyholder',
+//     match: { id: this.policyholderId }, // Explicit UUID match
+//   });
+//   next();
+// });
 
-    // Static method to validate policy amount
-    static validateAmount(amount, policyAmount) {
-        if (amount <= 0) {
-            return 'Amount must be greater than zero.';
-        }
-        if (amount > policyAmount) {
-            return `Claim amount cannot exceed the policy amount of ${policyAmount}.`;
-        }
-        return null;
-    }
 
-    // Static method to validate policy status
-    static validateStatus(status) {
-        const validStatuses = ['active', 'expired', 'cancelled'];
-        if (!validStatuses.includes(status)) {
-            return 'Invalid status. Allowed values are: active, expired, cancelled.';
-        }
-        return null;
-    }
+// // Populate the Policyholder details when getting the policy
+// PolicySchema.pre('findOne', function(next) {
+//     this.populate('policyholderId');
+//     next();
+// });
+// Pre-save middleware to set initial remaining coverage
+PolicySchema.pre('save', function(next) {
+  if (this.isNew) {
+    this.remainingCoverageAmount = Number(this.policyAmount);
+  }
+  next();
+});
 
-    // Save the policy to the "in-memory" array after validating
-    static save(policy) {
-        // Check if the policy already exists
-        const existingPolicy = policies.find(p => p.id === policy.id);
-        if (existingPolicy) {
-            throw new Error('Policy with the same ID already exists.');
-        }
+// Pre-validate middleware to ensure remainingCoverageAmount is valid
+PolicySchema.pre('validate', function(next) {
+  if (this.remainingCoverageAmount === undefined || isNaN(this.remainingCoverageAmount)) {
+    this.remainingCoverageAmount = Number(this.policyAmount);
+  }
+  next();
+});
 
-        // Validate policy amount
-        const amountValidation = Policy.validateAmount(policy.policyAmount, policy.policyAmount);
-        if (amountValidation) {
-            throw new Error(amountValidation);
-        }
-
-        // Validate policy status
-        const statusValidation = Policy.validateStatus(policy.status);
-        if (statusValidation) {
-            throw new Error(statusValidation);
-        }
-
-        // If valid, save the policy
-        policies.push(policy);
-    }
-
-    // Static method to find a policy by ID
-    static findById(id) {
-        return policies.find(p => p.id === id);
-    }
-
-    // Method to update the remaining coverage amount after a claim
-    updateRemainingCoverage(claimAmount) {
-        if (claimAmount > this.remainingCoverageAmount) {
-            throw new Error('Claim amount exceeds remaining coverage.');
-        }
-        this.remainingCoverageAmount -= claimAmount;
-        this.updatedAt = new Date();
-    }
-
-    // Static method to delete a policy by ID
-    static deleteById(id) {
-        const index = policies.findIndex(p => p.id === id);
-        if (index === -1) return false;
-        policies.splice(index, 1);
-        return true;
-    }
-
-    // Static method to update policy details and remaining coverage amount
-    static updatePolicy(id, updatedData) {
-        const policy = policies.find(p => p.id === id);
-        if (!policy) return null;
-
-        // If the policyAmount is updated, update the remainingCoverageAmount as well
-        if (updatedData.policyAmount && updatedData.policyAmount !== policy.policyAmount) {
-            policy.policyAmount = updatedData.policyAmount;
-            policy.remainingCoverageAmount = updatedData.policyAmount; // Ensure remaining coverage is updated
-        }
-
-        // If the status is updated, just update the status
-        if (updatedData.status) {
-            policy.status = updatedData.status;
-        }
-
-        policy.updatedAt = new Date();
-        return policy;
-    }
-}
-
+const Policy = mongoose.model("Policy", PolicySchema);
 export default Policy;
